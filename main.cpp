@@ -4,7 +4,8 @@
 #include <string>
 #include <time.h>
 #include <Windows.h> // Windows Specific
-#include <iostream>;
+#include <iostream>
+#include <fstream>
 #include <CkGlobalW.h>
 #include <CkHttpW.h>
 #include <CkHttpRequestW.h>
@@ -25,6 +26,7 @@ char * getTime();
 int triggerPost();
 const string currentDateTime();
 void twitterPostWoWeather();
+void checkFile();
 
 /*
 **************************************
@@ -65,7 +67,34 @@ void downloadWeather(void)
 	}
 	wprintf(L"Downloading the weather data.\n");
 	wprintf(L"Success: weather.xml\r\n\n");
-	twitterPost();
+	checkFile();
+}
+
+/*
+**************************************
+checkFile
+**************************************
+*/
+void checkFile(void)
+{
+	int length;
+	ifstream filestr;
+
+	filestr.open("weather.xml", ios::binary); // open your file
+	filestr.seekg(0, ios::end); // put the "cursor" at the end of the file
+	length = filestr.tellg(); // find the position of the cursor
+	filestr.close(); // close your file
+
+	if ( length == 0 ){
+		wprintf(L"weather.xml is corrupt.\n");
+		twitterPostWoWeather();
+
+	}
+	else {
+		wprintf(L"weather.xml is OK!\n");
+		twitterPost();
+
+	}
 }
 
 /*
