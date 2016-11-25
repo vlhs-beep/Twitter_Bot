@@ -143,8 +143,8 @@ wchar_t *mediaUpload()
  
     //  Provide the OAuth 1.0a credentials:
     http.put_OAuth1(true);
-    http.put_OAuthConsumerKey(L"YMHPT7IUI9Ep4urozNWbBVkxa");
-    http.put_OAuthConsumerSecret(L"69pWUv1UnnsXPnAb2jst4mlSoqV7BIQ8rFJzwkrsbIteLlGBsJ");
+    http.put_OAuthConsumerKey(L"YOUR_CONSUMERKEY");
+    http.put_OAuthConsumerSecret(L"YOUR_CONSUMERSECRET");
     http.put_OAuthToken(jsonToken.stringOf(L"oauth_token"));
     http.put_OAuthTokenSecret(jsonToken.stringOf(L"oauth_token_secret"));
  
