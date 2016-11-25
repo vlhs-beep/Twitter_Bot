@@ -121,7 +121,6 @@ void downloadSatellite(void)
     }
     wprintf(L"Successfully downloaded the satellite image\n");
     twitterPost();
- 
 }
 
 /*
