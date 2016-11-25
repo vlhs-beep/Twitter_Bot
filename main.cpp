@@ -15,6 +15,8 @@
 #include <CkJsonObjectW.h>
 #include <CkOAuth1W.h>
 #include <CkStringBuilderW.h>
+#include <CkFileAccessW.h>
+#include <CkByteData.h>
 
 using namespace std;
 
@@ -27,6 +29,8 @@ int triggerPost();
 const string currentDateTime();
 void twitterPostWoWeather();
 void checkFile();
+wchar_t *mediaUpload();
+void downloadSatellite();
 
 /*
 **************************************
@@ -92,9 +96,104 @@ void checkFile(void)
 	}
 	else {
 		wprintf(L"weather.xml is OK!\n");
-		twitterPost();
+        	downloadSatellite();
+		
+    }
+}
 
-	}
+/*
+**************************************
+downloadSatellite
+**************************************
+*/
+ 
+void downloadSatellite(void)
+{
+    CkHttpW http;
+    bool success;
+    const wchar_t *localFilePath = 0;
+    localFilePath = L"qa_data/jpg/hisasat.gif";
+    success = http.Download(L"http://images.intellicast.com/WxImages/Satellite/hisasat.gif",localFilePath);
+    if (success != true) {
+        wprintf(L"Error, Can't download the satellite image.\r\n");
+        twitterPostWoWeather();
+        //return;
+    }
+    wprintf(L"Successfully downloaded the satellite image\n");
+    twitterPost();
+ 
+}
+
+/*
+**************************************
+mediaUpload
+**************************************
+*/
+ 
+wchar_t *mediaUpload()
+{
+    //  It requires the Chilkat API to have been previously unlocked.
+    //  See Global Unlock Sample for sample code.
+ 
+    //  Assume we've previously obtained an access token and saved it to a JSON file..
+    CkJsonObjectW jsonToken;
+    bool success = jsonToken.LoadFile(L"qa_data/tokens/twitter.json");
+ 
+    CkHttpW http;
+ 
+    //  Provide the OAuth 1.0a credentials:
+    http.put_OAuth1(true);
+    http.put_OAuthConsumerKey(L"YMHPT7IUI9Ep4urozNWbBVkxa");
+    http.put_OAuthConsumerSecret(L"69pWUv1UnnsXPnAb2jst4mlSoqV7BIQ8rFJzwkrsbIteLlGBsJ");
+    http.put_OAuthToken(jsonToken.stringOf(L"oauth_token"));
+    http.put_OAuthTokenSecret(jsonToken.stringOf(L"oauth_token_secret"));
+ 
+    CkHttpRequestW req;
+    req.put_HttpVerb(L"POST");
+    req.put_ContentType(L"multipart/form-data");
+    req.put_Path(L"/1.1/media/upload.json");
+ 
+    req.AddHeader(L"Expect", L"100-continue");
+ 
+    //  Add a JPEG image file to the upload.
+    CkFileAccessW fac;
+    CkByteData jpgBytes;
+    success = fac.ReadEntireFile(L"qa_data/jpg/hisasat.gif", jpgBytes);
+    req.AddBytesForUpload(L"media", L"hisasat.gif", jpgBytes);
+ 
+    CkHttpResponseW *response = http.SynchronousRequest(L"upload.twitter.com", 443, true, req);
+    if (http.get_LastMethodSuccess() != true) {
+        wprintf(L"%s\n", http.lastErrorText());
+        return 0;
+    }
+ 
+    CkJsonObjectW jsonResponse;
+    jsonResponse.put_EmitCompact(false);
+    jsonResponse.Load(response->bodyStr());
+ 
+    if (response->get_StatusCode() != 200) {
+        wprintf(L"%s\n", jsonResponse.emit());
+        return 0;
+    }
+ 
+    delete response;
+ 
+    //  Show the successful response:
+    wprintf(L"%s\n", jsonResponse.emit());
+    wprintf(L"Success.\n");
+ 
+    //  Get the information from the JSON:
+    wprintf(L"media_id_string = %s\n", jsonResponse.stringOf(L"media_id_string"));
+    wprintf(L"size = %d\n", jsonResponse.IntOf(L"size"));
+    wprintf(L"image_type = %s\n", jsonResponse.stringOf(L"image.image_type"));
+    wprintf(L"height/width = %d,%d\n", jsonResponse.IntOf(L"image.w"), jsonResponse.IntOf(L"image.h"));
+ 
+    // We need to pass the value of media_id_string to another function
+    const wchar_t * global_media_id = jsonResponse.stringOf(L"media_id_string");
+    wchar_t* t = new wchar_t[50];
+    wcscpy(t, global_media_id);
+    return t;
+ 
 }
 
 /*
@@ -171,9 +270,12 @@ void twitterPost(void)
 	//  Send a tweet...
 	rest.ClearAllQueryParams();
 	rest.AddQueryParam(L"status", sbText.getAsString());
+	// We need to upload the latest satellite image
+	// Add list of media_ids to associate with the Tweet, get the media_ids from mediaUpload function.
+	rest.AddQueryParam(L"media_ids", mediaUpload());
 	const wchar_t *response = rest.fullRequestFormUrlEncoded(L"POST", L"/1.1/statuses/update.json");
 	if (rest.get_LastMethodSuccess() != true) {
-	//wprintf(L"%s\n", rest.lastErrorText());
+	wprintf(L"Error\n");
 	return;
 	}
 	CkJsonObjectW jsonResponse;
@@ -255,7 +357,7 @@ void twitterPostWoWeather(void)
 	rest.AddQueryParam(L"status", sbText.getAsString());
 	const wchar_t *response = rest.fullRequestFormUrlEncoded(L"POST", L"/1.1/statuses/update.json");
 	if (rest.get_LastMethodSuccess() != true) {
-		//wprintf(L"%s\n", rest.lastErrorText());
+		wprintf(L"ERROR\n");
 		return;
 	}
 	CkJsonObjectW jsonResponse;
