@@ -209,8 +209,8 @@ void twitterPost(void)
 	CkOAuth1W oauth1;
 	oauth1.put_ConsumerKey(L"YOUR_CONSUMERKEY");
 	oauth1.put_ConsumerSecret(L"YOUR_CONSUMERSECRET");
-	oauth1.put_Token(json.stringOf(L"YOUR_OAUTH_TOKEN"));
-	oauth1.put_TokenSecret(json.stringOf(L"YOUR_OAUTH_TOKEN_SECRET"));
+	oauth1.put_Token(json.stringOf(L"oauth_token"));
+	oauth1.put_TokenSecret(json.stringOf(L"oauth_token_secret"));
 	oauth1.put_SignatureMethod(L"HMAC-SHA1");
 	oauth1.GenNonce(16);
 	rest.SetAuthOAuth1(oauth1, false);
