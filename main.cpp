@@ -31,6 +31,7 @@ void twitterPostWoWeather();
 void checkFile();
 wchar_t *mediaUpload();
 void downloadSatellite();
+wchar_t *stringToEmoji();
 
 /*
 **************************************
@@ -41,6 +42,7 @@ void main(void)
 {
 	global_Unlock();
 	triggerPost();
+	
 }
 
 /* global unlock */
@@ -51,6 +53,55 @@ void global_Unlock(void){
 		wprintf(L"%s\n",glob.lastErrorText());
 		return;
 	}
+}
+
+/*
+**************************************
+stringToEmoji
+**************************************
+*/
+wchar_t *stringToEmoji()
+{
+	CkXmlW xml;
+	CkXmlW *cloudsNode = 0;
+	//	Load the xml file where we have the weather information.
+	xml.LoadXmlFile(L"weather.xml");
+	cloudsNode = xml.GetChild(5);
+	const wchar_t *cloudswchar(cloudsNode->getAttrValue(L"name"));
+	// We need to pass the string of clouds to another function
+	wchar_t* t = new wchar_t[50];
+	wcscpy(t, cloudswchar);
+	delete cloudsNode;
+
+	CkStringBuilderW sbText;
+	sbText.LoadFile(L"qa_data/txt/scattered_clouds.txt", L"utf-8");
+	const wchar_t *emoji_1 = sbText.getAsString();
+	// We need to pass the value of media_id_string to another function
+	//const wchar_t * global_media_id = jsonResponse.stringOf(L"media_id_string");
+	wchar_t* emoji_scattered_clouds = new wchar_t[50];
+	wcscpy(emoji_scattered_clouds, emoji_1);
+	wprintf(L"TEST%s\n",sbText.getAsString());
+	wchar_t const *scattered_clouds = (t);
+	wchar_t const *string1 = L"scattered clouds";
+	int  result1 = wcscmp( scattered_clouds, string1 );
+	if ( result1 == 0 )
+		//printf( "%ls\ identical to \%ls\n", scattered_clouds, string2);
+			return emoji_scattered_clouds;
+	else
+	CkStringBuilderW sbText;
+	sbText.LoadFile(L"qa_data/txt/clear_sky.txt", L"utf-8");
+	const wchar_t *emoji_2 = sbText.getAsString();
+	// We need to pass the value of media_id_string to another function
+	//const wchar_t * global_media_id = jsonResponse.stringOf(L"media_id_string");
+	wchar_t* emoji_clear_sky = new wchar_t[50];
+	wcscpy(emoji_clear_sky, emoji_2);
+	wprintf(L"TEST%s\n",sbText.getAsString());
+	wchar_t const *clear_sky = (t);
+	wchar_t const *string2 = L"clear sky";
+	int  result2 = wcscmp( clear_sky, string2 );
+	if ( result2 == 0 )
+		//printf( "%ls\ identical to \%ls\n", clear_sky, string2);
+			return emoji_clear_sky;
 }
 
 /*
@@ -253,9 +304,12 @@ void twitterPost(void)
 	sbText.Prepend(L" \n");
 	sbText.Prepend(pcwstr);
 	sbText.Prepend(L" \n");
+	sbText.Prepend(L"%");
 	sbText.Prepend(humiditywchar);
 	sbText.Prepend(L"Humidity: ");
 	sbText.Prepend(L" \n");
+	// Weather to emoji
+	sbText.Prepend(stringToEmoji());
 	sbText.Prepend(cloudswchar);
 	sbText.Prepend(L"Clouds: ");
 	sbText.Prepend(L" \n");
