@@ -21,6 +21,8 @@
 #include <CkFileAccessW.h>
 #include <CkByteData.h>
 
+int main() {
+    
 CkGlobalW glob;
 CkHttpW http;
 CkJsonObjectW json;
@@ -31,8 +33,6 @@ CkOAuth1W oauth1;
 CkHttpRequestW req;
 CkFileAccessW fac;
 CkByteData jpgBytes;
-
-int main() {
 
     // Get current date/time, format is YYYY-MM-DD.HH:mm:ss
     time_t now = time(0);
@@ -500,10 +500,6 @@ int main() {
         wprintf(L"%ls\n", jsonResponse.emit());
         wprintf(L"Success.\n");
     }
-
-    //////////
-    // Run every 30 minutes
-    std::this_thread::sleep_for(std::chrono::minutes(30));
 
     //////////
 
