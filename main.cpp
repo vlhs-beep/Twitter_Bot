@@ -2,9 +2,6 @@
 #include <iostream>
 #include <ctime>
 #include <Windows.h>
-#include <fstream>
-#include <chrono>
-#include <thread>
 #include <CkGlobalW.h>
 #include <CkHttpW.h>
 #include <CkHttpRequestW.h>
