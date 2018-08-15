@@ -1,11 +1,14 @@
 #include <cstdio>
-#include <stdio.h>
+#include <iostream>
+#include <cstdio>
 #include <conio.h>
 #include <string>
-#include <time.h>
+#include <ctime>
 #include <Windows.h> // Windows Specific
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <thread>
 #include <CkGlobalW.h>
 #include <CkHttpW.h>
 #include <CkHttpRequestW.h>
@@ -18,753 +21,492 @@
 #include <CkFileAccessW.h>
 #include <CkByteData.h>
 
-using namespace std;
+CkGlobalW glob;
+CkHttpW http;
+CkJsonObjectW json;
+CkStringBuilderW sbText;
+CkStringBuilderW sb2Text;
+CkRestW rest;
+CkOAuth1W oauth1;
+CkHttpRequestW req;
+CkFileAccessW fac;
+CkByteData jpgBytes;
 
-// Functions declarations
-void global_Unlock();
-void downloadWeather();
-void twitterPost();
-char * getTime();
-int triggerPost();
-const string currentDateTime();
-void twitterPostWoWeather();
-void checkFile();
-wchar_t *mediaUpload();
-void downloadSatellite();
-wchar_t *stringToEmoji();
+int main() {
 
-/*
-**************************************
-main
-**************************************
-*/
-void main(void)
-{
-	global_Unlock();
-	triggerPost();
-	
-}
+    // Get current date/time, format is YYYY-MM-DD.HH:mm:ss
+    time_t now = time(0);
+    struct tm tstruct;
+    char buf[80];
+    tstruct = *localtime(&now);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tstruct);
+    // Convert from const string to const wchar
+    const std::string tempHora = buf;
+    std::wstring ws;
+    // Assigns new character values to the contents of a string.
+    ws.assign(tempHora.begin(), tempHora.end());
+    // Get temporary LPCWSTR
+    LPCWSTR horaActual = ws.c_str();
 
-/* global unlock */
-void global_Unlock(void){
-	CkGlobalW glob;
-	bool success = glob.UnlockBundle(L"Anything for 30-day trial");
-	if (success != true) {
-		wprintf(L"%s\n",glob.lastErrorText());
-		return;
-	}
-}
+    //////////
 
-/*
-**************************************
-stringToEmoji
-**************************************
-*/
-wchar_t *stringToEmoji()
-{
-	CkXmlW xml;
-	CkXmlW *cloudsNode = 0;
-	//	Load the xml file where we have the weather information.
-	xml.LoadXmlFile(L"weather.xml");
-	cloudsNode = xml.GetChild(5);
-	const wchar_t *cloudswchar(cloudsNode->getAttrValue(L"name"));
-	// We need to pass the string of clouds to another function
-	wchar_t* t = new wchar_t[50];
-	wcscpy(t, cloudswchar);
-	delete cloudsNode;
-
-	CkStringBuilderW sbText;
-	sbText.LoadFile(L"qa_data/txt/scattered_clouds.txt", L"utf-8");
-	const wchar_t *emoji_1 = sbText.getAsString();
-	// We need to pass the value of media_id_string to another function
-	//const wchar_t * global_media_id = jsonResponse.stringOf(L"media_id_string");
-	wchar_t* emoji_scattered_clouds = new wchar_t[50];
-	wcscpy(emoji_scattered_clouds, emoji_1);
-	wprintf(L"TEST%s\n",sbText.getAsString());
-	wchar_t const *scattered_clouds = (t);
-	wchar_t const *string1 = L"scattered clouds";
-	int  result1 = wcscmp( scattered_clouds, string1 );
-	if ( result1 == 0 )
-		//printf( "%ls\ identical to \%ls\n", scattered_clouds, string2);
-			return emoji_scattered_clouds;
-	else
-	CkStringBuilderW sbText;
-	sbText.LoadFile(L"qa_data/txt/clear_sky.txt", L"utf-8");
-	const wchar_t *emoji_2 = sbText.getAsString();
-	// We need to pass the value of media_id_string to another function
-	//const wchar_t * global_media_id = jsonResponse.stringOf(L"media_id_string");
-	wchar_t* emoji_clear_sky = new wchar_t[50];
-	wcscpy(emoji_clear_sky, emoji_2);
-	wprintf(L"TEST%s\n",sbText.getAsString());
-	wchar_t const *clear_sky = (t);
-	wchar_t const *string2 = L"clear sky";
-	int  result2 = wcscmp( clear_sky, string2 );
-	if ( result2 == 0 )
-		//printf( "%ls\ identical to \%ls\n", clear_sky, string2);
-			return emoji_clear_sky;
-}
-
-/*
-**************************************
-downloadWeather
-**************************************
-*/
-void downloadWeather(void)
-{
-	CkHttpW http;
-	bool geturl;
-	const wchar_t *url = (L"http://YOUR_OPENWEATHER.ORG_URL");
-	const wchar_t *localFilePath = L"weather.xml";
-	geturl = http.Download(url, localFilePath);
-	if (geturl != true)	{
-		wprintf(L"Error, Can't connect to open weather.\r\n");
-		twitterPostWoWeather();
-	}
-	wprintf(L"Downloading the weather data.\n");
-	wprintf(L"Success: weather.xml\r\n\n");
-	checkFile();
-}
-
-/*
-**************************************
-checkFile
-**************************************
-*/
-void checkFile(void)
-{
-	int length;
-	ifstream filestr;
-
-	filestr.open("weather.xml", ios::binary); // open your file
-	filestr.seekg(0, ios::end); // put the "cursor" at the end of the file
-	length = filestr.tellg(); // find the position of the cursor
-	filestr.close(); // close your file
-
-	if ( length == 0 ){
-		wprintf(L"weather.xml is corrupt.\n");
-		twitterPostWoWeather();
-
-	}
-	else {
-		wprintf(L"weather.xml is OK!\n");
-        	downloadSatellite();
-		
+    bool successUnlock = glob.UnlockBundle(L"Anything for 30-day trial");
+    if (successUnlock != true) {
+        wprintf(L"%s\n", glob.lastErrorText());
+        return 0;
     }
-}
 
-/*
-**************************************
-downloadSatellite
-**************************************
-*/
- 
-void downloadSatellite(void)
-{
-    CkHttpW http;
-    bool success;
-    const wchar_t *localFilePath = 0;
-    localFilePath = L"qa_data/jpg/hisasat.gif";
-    success = http.Download(L"http://images.intellicast.com/WxImages/Satellite/hisasat.gif",localFilePath);
-    if (success != true) {
-        wprintf(L"Error, Can't download the satellite image.\r\n");
-        twitterPostWoWeather();
-        //return;
+    //////////
+
+    bool getUrlWeather;
+    const wchar_t *urlWeather =
+            (L"OPENWEATHER URL");
+    const wchar_t *localFilePathWeather = L"qa_data/json/weather.json";
+    getUrlWeather = http.Download(urlWeather, localFilePathWeather);
+    if (getUrlWeather != true) {
+        wprintf(L"Error, Can't connect to open weather.\r\n");
+        return 0;
     }
-    wprintf(L"Successfully downloaded the satellite image\n");
-    twitterPost();
-}
 
-/*
-**************************************
-mediaUpload
-**************************************
-*/
- 
-wchar_t *mediaUpload()
-{
-    //  It requires the Chilkat API to have been previously unlocked.
-    //  See Global Unlock Sample for sample code.
- 
-    //  Assume we've previously obtained an access token and saved it to a JSON file..
+    //////////
+
+    bool getUrlSatellite;
+    const wchar_t *urlSatellite =
+            (L"IMAGE URL");
+    const wchar_t *localFilePathSatellite = L"qa_data/image/snapshot.jpg";
+    getUrlSatellite = http.Download(urlSatellite, localFilePathSatellite);
+    if (getUrlSatellite != true) {
+        wprintf(L"Error, Can't connect to open weather.\r\n");
+        return 0;
+    }
+
+    //////////
+
+    rest.SetAuthOAuth1(oauth1, false);
+    bool bAutoReconnect = true;
+    bool successC = json.LoadFile(L"qa_data/tokens/twitter.json");
+    oauth1.put_ConsumerKey(L"CONSUMER KEY");
+    oauth1.put_ConsumerSecret(L"CONSUMER SECRET");
+    oauth1.put_Token(json.stringOf(L"oauth_token"));
+    oauth1.put_TokenSecret(json.stringOf(L"oauth_token_secret"));
+    oauth1.put_SignatureMethod(L"HMAC-SHA1");
+    oauth1.GenNonce(16);
+
+    successC = rest.Connect(L"api.twitter.com", 443, true, bAutoReconnect);
+    if (successC != true) {
+        wprintf(L"%ls\n", rest.lastErrorText());
+        return 0;
+    }
+
+    //////////
+
+    // Assume we've previously obtained an access token and saved it to a JSON file..
     CkJsonObjectW jsonToken;
     bool success = jsonToken.LoadFile(L"qa_data/tokens/twitter.json");
- 
-    CkHttpW http;
- 
-    //  Provide the OAuth 1.0a credentials:
+
+    // Provide the OAuth 1.0a credentials:
     http.put_OAuth1(true);
-    http.put_OAuthConsumerKey(L"YOUR_CONSUMERKEY");
-    http.put_OAuthConsumerSecret(L"YOUR_CONSUMERSECRET");
+    http.put_OAuthConsumerKey(L"CONSUMER KEY");
+    http.put_OAuthConsumerSecret(L"CONSUMER SECRET");
     http.put_OAuthToken(jsonToken.stringOf(L"oauth_token"));
     http.put_OAuthTokenSecret(jsonToken.stringOf(L"oauth_token_secret"));
- 
-    CkHttpRequestW req;
+
     req.put_HttpVerb(L"POST");
     req.put_ContentType(L"multipart/form-data");
     req.put_Path(L"/1.1/media/upload.json");
- 
+
     req.AddHeader(L"Expect", L"100-continue");
- 
-    //  Add a JPEG image file to the upload.
-    CkFileAccessW fac;
-    CkByteData jpgBytes;
-    success = fac.ReadEntireFile(L"qa_data/jpg/hisasat.gif", jpgBytes);
-    req.AddBytesForUpload(L"media", L"hisasat.gif", jpgBytes);
- 
-    CkHttpResponseW *response = http.SynchronousRequest(L"upload.twitter.com", 443, true, req);
+
+    // Add a JPEG image file to the upload.
+    success = fac.ReadEntireFile(L"qa_data/image/snapshot.jpg", jpgBytes);
+    req.AddBytesForUpload(L"media", L"snapshot.jpg", jpgBytes);
+
+    CkHttpResponseW *response = http.SynchronousRequest(L"upload.twitter.com",
+                                                        443, true, req);
     if (http.get_LastMethodSuccess() != true) {
-        wprintf(L"%s\n", http.lastErrorText());
+        wprintf(L"%ls\n", http.lastErrorText());
         return 0;
     }
- 
+
     CkJsonObjectW jsonResponse;
     jsonResponse.put_EmitCompact(false);
     jsonResponse.Load(response->bodyStr());
- 
+
     if (response->get_StatusCode() != 200) {
-        wprintf(L"%s\n", jsonResponse.emit());
+        wprintf(L"%ls\n", jsonResponse.emit());
         return 0;
     }
- 
+
     delete response;
- 
-    //  Show the successful response:
-    wprintf(L"%s\n", jsonResponse.emit());
+
+    // Show the successful response:
+    wprintf(L"%ls\n", jsonResponse.emit());
     wprintf(L"Success.\n");
- 
-    //  Get the information from the JSON:
-    wprintf(L"media_id_string = %s\n", jsonResponse.stringOf(L"media_id_string"));
+
+    // Get the information from the JSON:
+    wprintf(L"media_id_string = %ls\n", jsonResponse.stringOf(L"media_id_string"));
     wprintf(L"size = %d\n", jsonResponse.IntOf(L"size"));
-    wprintf(L"image_type = %s\n", jsonResponse.stringOf(L"image.image_type"));
+    wprintf(L"image_type = %ls\n", jsonResponse.stringOf(L"image.image_type"));
     wprintf(L"height/width = %d,%d\n", jsonResponse.IntOf(L"image.w"), jsonResponse.IntOf(L"image.h"));
- 
-    // We need to pass the value of media_id_string to another function
-    const wchar_t * global_media_id = jsonResponse.stringOf(L"media_id_string");
-    wchar_t* t = new wchar_t[50];
-    wcscpy(t, global_media_id);
-    return t;
- 
-}
 
-/*
-**************************************
-twitterPost
-**************************************
-*/
-void twitterPost(void)
-{
-	//  Assume we've previously obtained an access token and saved it to a JSON file..
-	CkJsonObjectW json;
-	bool success = json.LoadFile(L"qa_data/tokens/twitter.json");
-	CkRestW rest;
-	CkOAuth1W oauth1;
-	oauth1.put_ConsumerKey(L"YOUR_CONSUMERKEY");
-	oauth1.put_ConsumerSecret(L"YOUR_CONSUMERSECRET");
-	oauth1.put_Token(json.stringOf(L"oauth_token"));
-	oauth1.put_TokenSecret(json.stringOf(L"oauth_token_secret"));
-	oauth1.put_SignatureMethod(L"HMAC-SHA1");
-	oauth1.GenNonce(16);
-	rest.SetAuthOAuth1(oauth1, false);
-	bool bTls = true;
-	int port = 443;
-	bool bAutoReconnect = true;
-	success = rest.Connect(L"api.twitter.com",port,bTls,bAutoReconnect);
-	wprintf(L"Checking the connection with twitter...\n\n");
-	if (success != true) {
-		wprintf(L"Error, Can't connect to twitter.");
-		triggerPost();
-}
-	CkXmlW xml;
-	CkXmlW *cityNode = 0;
-	CkXmlW *tempNode = 0;
-	CkXmlW *cloudsNode = 0;
-	CkXmlW *humidityNode = 0;
-	//	Load the xml file where we have the weather information.
-	xml.LoadXmlFile(L"weather.xml");
-	tempNode = xml.GetChild(1);
-	const wchar_t *tempwchar(tempNode->getAttrValue(L"value"));
-	cityNode = xml.FirstChild();
-	const wchar_t *citywchar(cityNode->getAttrValue(L"name"));
-	cloudsNode = xml.GetChild(5);
-	const wchar_t *cloudswchar(cloudsNode->getAttrValue(L"name"));
-	humidityNode = xml.GetChild(2);
-	const wchar_t *humiditywchar(humidityNode->getAttrValue(L"value"));
-	/* Get current time/date */
-	// Convert from const string to const wchar
-	const string tempdate = currentDateTime();
-	wstring ws;
-	//	Assigns new character values to the contents of a string.
-	ws.assign(tempdate.begin(), tempdate.end());
-	//	Get temporary LPCWSTR
-	LPCWSTR pcwstr = ws.c_str();
-	//
-	CkStringBuilderW sbText;
-	sbText.LoadFile(L"qa_data/txt/ghost_emoji.txt", L"utf-8");
-	sbText.Prepend(L"#HoraEnChile #ChileCurrentTime\n");
-	sbText.Prepend(L" \n");
-	sbText.Prepend(pcwstr);
-	sbText.Prepend(L" \n");
-	sbText.Prepend(L"%");
-	sbText.Prepend(humiditywchar);
-	sbText.Prepend(L"Humidity: ");
-	sbText.Prepend(L" \n");
-	// Weather to emoji
-	sbText.Prepend(stringToEmoji());
-	sbText.Prepend(cloudswchar);
-	sbText.Prepend(L"Clouds: ");
-	sbText.Prepend(L" \n");
-	sbText.Prepend(tempwchar);
-	sbText.Prepend(L"Current temp: ");
-	sbText.Prepend(L" \n");
-	sbText.Prepend(citywchar);
-	sbText.Prepend(L"City: ");
-	sbText.Prepend(L" \n");
-	wprintf(L"%s\n",sbText.getAsString());
-	//  Send a tweet...
-	rest.ClearAllQueryParams();
-	rest.AddQueryParam(L"status", sbText.getAsString());
-	// We need to upload the latest satellite image
-	// Add list of media_ids to associate with the Tweet, get the media_ids from mediaUpload function.
-	rest.AddQueryParam(L"media_ids", mediaUpload());
-	const wchar_t *response = rest.fullRequestFormUrlEncoded(L"POST", L"/1.1/statuses/update.json");
-	if (rest.get_LastMethodSuccess() != true) {
-	wprintf(L"Error\n");
-	return;
-	}
-	CkJsonObjectW jsonResponse;
-	jsonResponse.put_EmitCompact(false);
-	jsonResponse.Load(response);
-	if (rest.get_ResponseStatusCode() != 200) {
-	wprintf(L"%s\n", jsonResponse.emit());
-	return;
-	}
-	//  Show the successful response:
-	wprintf(L"%s\n", jsonResponse.emit());
-	wprintf(L"Success.\n");
-	//	Delete the temperature node, tempNode, etc...
-	delete tempNode;
-	delete cityNode;
-	delete cloudsNode;
-	delete humidityNode;
-	return;
-}
+    //////////
 
-/*
-**************************************
-twitterPostWoWeather
-**************************************
-*/
-void twitterPostWoWeather(void)
-{
-	//  Assume we've previously obtained an access token and saved it to a JSON file..
-	CkJsonObjectW json;
-	bool success = json.LoadFile(L"qa_data/tokens/twitter.json");
-	CkRestW rest;
-	CkOAuth1W oauth1;
-	oauth1.put_ConsumerKey(L"YOUR_CONSUMERKEY");
-	oauth1.put_ConsumerSecret(L"YOUR_CONSUMERSECRET");
-    	oauth1.put_Token(json.stringOf(L"oauth_token"));
-    	oauth1.put_TokenSecret(json.stringOf(L"oauth_token_secret"));
-	oauth1.put_SignatureMethod(L"HMAC-SHA1");
-	oauth1.GenNonce(16);
-	rest.SetAuthOAuth1(oauth1, false);
-	bool bTls = true;
-	int port = 443;
-	bool bAutoReconnect = true;
-	success = rest.Connect(L"api.twitter.com",port,bTls,bAutoReconnect);
-	wprintf(L"Checking the connection with twitter...\n\n");
-	if (success != true) {
-		wprintf(L"Error, Can't connect to twitter.");
-		triggerPost();
-	}
-	/* Get current time/date */
-	// Convert from const string to const wchar
-	const string tempdate1 = currentDateTime();
-	wstring ws;
-	//	Assigns new character values to the contents of a string.
-	ws.assign(tempdate1.begin(), tempdate1.end());
-	//	Get temporary LPCWSTR
-	LPCWSTR pcwstr = ws.c_str();
-	//
-	CkStringBuilderW sbText;
-	sbText.LoadFile(L"qa_data/txt/ghost_emoji.txt", L"utf-8");
-	sbText.Prepend(L"#HoraEnChile #ChileCurrentTime\n");
-	sbText.Prepend(L" \n");
-	sbText.Prepend(pcwstr);
-	sbText.Prepend(L" \n");
-	sbText.Prepend(L"NO DATA");
-	sbText.Prepend(L"Humidity: ");
-	sbText.Prepend(L" \n");
-	sbText.Prepend(L"NO DATA");
-	sbText.Prepend(L"Clouds: ");
-	sbText.Prepend(L" \n");
-	sbText.Prepend(L"NO DATA");
-	sbText.Prepend(L"Current temp: ");
-	sbText.Prepend(L" \n");
-	sbText.Prepend(L"NO DATA");
-	sbText.Prepend(L"City: ");
-	sbText.Prepend(L" \n");
-	wprintf(L"%s\n",sbText.getAsString());
-	//  Send a tweet...
-	rest.ClearAllQueryParams();
-	rest.AddQueryParam(L"status", sbText.getAsString());
-	const wchar_t *response = rest.fullRequestFormUrlEncoded(L"POST", L"/1.1/statuses/update.json");
-	if (rest.get_LastMethodSuccess() != true) {
-		wprintf(L"ERROR\n");
-		return;
-	}
-	CkJsonObjectW jsonResponse;
-	jsonResponse.put_EmitCompact(false);
-	jsonResponse.Load(response);
-	if (rest.get_ResponseStatusCode() != 200) {
-		wprintf(L"%s\n", jsonResponse.emit());
-		return;
-	}
-	//  Show the successful response:
-	wprintf(L"%s\n", jsonResponse.emit());
-	wprintf(L"Success.\n");
-	return;
-}
+    bool successA = json.LoadFile(L"qa_data/json/weather.json");
+    if (successA != true) {
+        std::cout << "Can't load file" << std::endl;
+        return 0;
+    }
 
-/*
-**************************************
-currentDateTime
-**************************************
-*/
-// Get current date/time, format is YYYY-MM-DD.HH:mm:ss
-const string currentDateTime() {
-	time_t     now = time(0);
-	struct tm  tstruct;
-	char       buf[80];
-	tstruct = *localtime(&now);
-	// Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
-	// for more information about date/time format
-	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tstruct);
-	return buf;
-}
+    wchar_t const *broken_clouds = L"broken clouds";
+    wchar_t const *clear_sky = L"clear sky";
+    wchar_t const *few_clouds = L"few clouds";
+    wchar_t const *mist = L"mist";
+    wchar_t const *rain = L"rain";
+    wchar_t const *scattered_clouds = L"scattered clouds";
+    wchar_t const *shower_rain = L"shower rain";
+    wchar_t const *snow = L"snow";
+    wchar_t const *thunderstorm = L"thunderstorm";
 
-/*
-**************************************
-getTime
-**************************************
-*/
-char * getTime()
-{
-	char buffer[20];
-	char *times();
-	time_t now = time(0);
-	// tm structure to store and retrieve time information.
-	struct tm *RightNow;
-	RightNow = localtime((const time_t*)&now);
-	// Format a time string.
-	strftime(buffer, 20, "%H:%M:%S", RightNow);
-	//	Return buffer data to char *times()
-	return buffer;
-}
+    {
+        bool successB = json.LoadFile(L"qa_data/json/weather.json");
+        if (successB != true) {
+            std::cout << "Can't load file" << std::endl;
+            return 0;
+        }
+        const wchar_t *cloudswchar(json.stringOf(L"weather[0].description"));
+        wchar_t *t = new wchar_t[50];
+        wcscpy(t, cloudswchar);
 
-/*
-**************************************
-triggerPost
-**************************************
-*/
-int triggerPost()
-{
-	wprintf(L"Checking local machine time... \n\nA Twitter status post will be made at specified hours.\n");
-	while (1)
-	{
-		// Call the check_connection function at the specified hour.
-		if (strcmp(getTime(), "00:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "00:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "00:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "00:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "01:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "01:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "01:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "01:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "02:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "02:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "02:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "02:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "03:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "03:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "03:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "03:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "04:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "04:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "04:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "04:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "05:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "05:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "05:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "05:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "06:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "06:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "06:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "06:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "07:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "07:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "07:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "07:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "08:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "08:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "08:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "08:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "09:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "09:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "09:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "09:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "10:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "10:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "10:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "10:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "11:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "11:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "11:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "11:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "12:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "12:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "12:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "12:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "13:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "13:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "13:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "13:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "14:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "14:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "14:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "14:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "15:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "15:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "15:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "15:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "16:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "16:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "16:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "16:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "17:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "17:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "17:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "17:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "17:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "18:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "18:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "18:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "18:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "19:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "19:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "19:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "19:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "20:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "20:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "20:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "20:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "21:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "21:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "21:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "21:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "22:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "22:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "22:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "22:45:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "23:00:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "23:15:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "23:30:00") == 0) {
-			downloadWeather();
-		}
-		if (strcmp(getTime(), "23:45:00") == 0) {
-			downloadWeather();
-		}
-		//	Sleep 1 second to avoid the CPU to consume 100%
-		Sleep(1);
-	}
+        int result1 = wcscmp(broken_clouds, t);
+        if (result1 == 0) {
+            sbText.LoadFile(L"qa_data/txt/broken_clouds", L"utf-8");
+            std::cout << "Broken Clouds" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result2 = wcscmp(clear_sky, t);
+        if (result2 == 0) {
+            sb2Text.LoadFile(L"qa_data/txt/clear_sky.txt", L"utf-8");
+            std::cout << "Clear Sky" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result3 = wcscmp(few_clouds, t);
+        if (result3 == 0) {
+            sbText.LoadFile(L"qa_data/txt/few_clouds.txt", L"utf-8");
+            std::cout << "Few Clouds" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result4 = wcscmp(mist, t);
+        if (result4 == 0) {
+            sbText.LoadFile(L"qa_data/txt/mist.txt", L"utf-8");
+            std::cout << "Mist" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result5 = wcscmp(rain, t);
+        if (result5 == 0) {
+            sbText.LoadFile(L"qa_data/txt/rain.txt", L"utf-8");
+            std::cout << "Rain" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result6 = wcscmp(scattered_clouds, t);
+        if (result6 == 0) {
+            sbText.Prepend(L" \n");
+            sbText.LoadFile(L"qa_data/txt/scattered_clouds.txt", L"utf-8");
+            std::cout << "Scattered Clouds" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result7 = wcscmp(shower_rain, t);
+        if (result7 == 0) {
+            sbText.LoadFile(L"qa_data/txt/shower_rain.txt", L"utf-8");
+            std::cout << "Shower Rain" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result8 = wcscmp(snow, t);
+        if (result8 == 0) {
+            sbText.LoadFile(L"qa_data/txt/snow.txt", L"utf-8");
+            std::cout << "Snow" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        int result9 = wcscmp(thunderstorm, t);
+        if (result9 == 0) {
+            sbText.LoadFile(L"qa_data/txt/thunderstorm.txt", L"utf-8");
+            std::cout << "Thunderstorm" << std::endl;
+            sbText.Prepend(L" \n");
+            const wchar_t *emoji = sb2Text.getAsString();
+            sbText.Prepend(L"#HoraEnChile #ChileCurrentTime");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(horaActual);
+            sbText.Prepend(L" \n");
+            sbText.Prepend(emoji);
+            sbText.Prepend(json.stringOf(L"weather[0].description"));
+            sbText.Prepend(L"Cielo: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.humidity"));
+            sbText.Prepend(L"Humedad: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.pressure"));
+            sbText.Prepend(L"Presión: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"main.temp"));
+            sbText.Prepend(L"Temperatura: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"sys.country"));
+            sbText.Prepend(L"Pais: ");
+            sbText.Prepend(L" \n");
+            sbText.Prepend(json.stringOf(L"name"));
+            sbText.Prepend(L"Ciudad: ");
+            sbText.Prepend(L" \n");
+        }
+        else
+            std::cout << "NO" << std::endl;
+
+        //////////
+
+        // Send a tweet...
+        rest.ClearAllQueryParams();
+        rest.AddQueryParam(L"status", sbText.getAsString());
+        rest.AddQueryParam(L"media_ids", jsonResponse.stringOf(L"media_id_string"));
+        const wchar_t *response = rest.fullRequestFormUrlEncoded(L"POST", L"/1.1/statuses/update.json");
+        if (rest.get_LastMethodSuccess() != true) {
+            wprintf(L"%ls\n", rest.lastErrorText());
+            return 0;
+        }
+
+        CkJsonObjectW jsonResponse;
+        jsonResponse.put_EmitCompact(false);
+        jsonResponse.Load(response);
+
+        if (rest.get_ResponseStatusCode() != 200) {
+            wprintf(L"%ls\n", jsonResponse.emit());
+            return 0;
+        }
+
+        // Show the successful response:
+        wprintf(L"%ls\n", jsonResponse.emit());
+        wprintf(L"Success.\n");
+    }
+
+    //////////
+    // Run every 30 minutes
+    std::this_thread::sleep_for(std::chrono::minutes(30));
+
+    //////////
+
+    return 0;
+
 }
