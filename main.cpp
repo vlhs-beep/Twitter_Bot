@@ -1,11 +1,7 @@
 #include <cstdio>
 #include <iostream>
-#include <cstdio>
-#include <conio.h>
-#include <string>
 #include <ctime>
-#include <Windows.h> // Windows Specific
-#include <iostream>
+#include <Windows.h>
 #include <fstream>
 #include <chrono>
 #include <thread>
