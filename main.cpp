@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <iostream>
 #include <ctime>
-#include <Windows.h>
 #include <CkGlobalW.h>
 #include <CkHttpW.h>
 #include <CkHttpRequestW.h>
@@ -38,8 +37,8 @@ CkByteData jpgBytes;
     std::wstring ws;
     // Assigns new character values to the contents of a string.
     ws.assign(tempHora.begin(), tempHora.end());
-    // Get temporary LPCWSTR
-    LPCWSTR horaActual = ws.c_str();
+    
+    wchar_t const * horaActual = ws.c_str();
 
     //////////
 
